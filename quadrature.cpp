@@ -12,19 +12,11 @@
 // 320 x 240 pixels
 
 // All the X and Y cords of the widgets are harcoded
+// due to limitations in dynamic locating of GUI components
+// in the current software
 
 // Number of LED's at the top of the device
 const auto NUMBER_OF_LEDS = 7;
-
-// Indexes of the various GUI elements
-//const int panelIndex = 0;
-//const int transitionNumIndex = 1;
-//const int teethNumIndex = 2; // Represents the number of "teeth" the encoder sensor "has"
-//const int transitionTextIndex = 3;
-//const int plotControlIndex = 4;
-//const int revolutionTextIndex = 5;
-//const int revolutionNumIndex = 6;
-//const int teethTextIndex = 7;
 
 // Enum list to create indexes for all the GUI components
 enum guiIndexes {panelIndex,
@@ -40,7 +32,9 @@ enum guiIndexes {panelIndex,
                 totalRefsNumberIndex,
                 totalRefsTextIndex,
                 directionTextIndex,
-                directionNumberIndex};
+                directionNumberIndex,
+                quadModeTextIndex,
+                quadModeStateTextIndex};
 
 // Pins to output the quadrature signal
 // These correspond to GPIO pins in programming
@@ -76,6 +70,12 @@ float revPerSecond = (1/(  static_cast<float>(sensorRefreshRate*4*numberTeeth)) 
 // based on the sensor refresh rate (time that EITHER pinA or pinB changes)
 // This will be equal to: refreshrate/4 
 int totalRefs = 0; // Stores the total number of revs the sensor has "traveled"
+
+// Stores the mode that the virtual quadrature encoder is in
+// 0 is free-running (just runs)
+// 1 is up to a set tick limit
+uint8_t quadMode = 0;
+int tickLimit = 1;
 
 // Struct to store colors as individual channels
 struct Color {
@@ -122,6 +122,8 @@ auto setupMainPanelMenu(){
     uint8_t event_data[FW_GET_EVENT_DATA_MAX] = {0};
     getEventData(event_data);
     //setCanDisplayReactToButtons(0);
+    
+    // Don't log anything, we don't need it
     setPanelMenuText(panelIndex,0,"DNU!");
     setPanelMenuText(panelIndex,1,"DNU!");
     setPanelMenuText(panelIndex,2,"TDir");
@@ -206,7 +208,15 @@ auto setup_panels() -> void {
     addControlText(panelIndex,directionTextIndex, 
                    3, 170, 1, 64, 
                    WHITE.red, WHITE.green, WHITE.blue, "Direction:");
-
+    // This adds the text for the "Mode"
+    addControlText(panelIndex,quadModeTextIndex, 
+                   110, 66, 1, 64, 
+                   WHITE.red, WHITE.green, WHITE.blue, "Mode:");
+    // This adds the text for the current quad mode, in text format
+    // By default we are in free-running mode
+    addControlText(panelIndex,quadModeStateTextIndex, 
+                   166, 66, 1, 64, 
+                   GREEN.red, GREEN.green, GREEN.blue, "FRun");
     //TODO set min/max for number control values
 
     // EXPERIMENTAL 
@@ -234,7 +244,7 @@ auto setup_panels() -> void {
 
     //setCanDisplayReactToButtons(0);
     // Show the panel
-    showPanel(0);
+    showPanel(panelIndex);
     
 }
 
@@ -261,6 +271,14 @@ auto show_rainbow_leds(const int max_loops) -> void {
             waitms(50);
         }
     }
+}
+
+// Control the state of the simulate sensor outputs
+// Arguments are if the simulated qudrature should increase by one tick/state
+// or decrease by one tick/state
+// direction: 0 = backwards, 1 = forwards
+auto quadratureNextTick(int direction) -> void{
+    
 }
 
 // Process all the events forever
@@ -326,7 +344,6 @@ auto process_events() -> void {
                 nextStateIndex--;
                 transitionCount--;
                 revTickCount--;
-
             }
             if(nextStateIndex>3){
                 nextStateIndex = 0;
@@ -344,6 +361,9 @@ auto process_events() -> void {
                     totalRefs--;
                 }
             }
+
+            // Check if we are in any other mode and change the behavior as appropriate
+
             
 
             // EXPERIMENTAL
@@ -380,13 +400,21 @@ auto process_events() -> void {
         uint8_t event_data[FW_GET_EVENT_DATA_MAX] = {0};
         auto last_event = getEventData(event_data);
 
+        // If there is any event to edit numbers, go back to the main screen
+        // as it is not supported now
+        if(last_event == FWGUI_EVENT_GUI_NUMEDIT){
+            showPanel(panelIndex);
+            // TODO: Add recalculation of all 
+            // numbers upon edit
+        }
+
         // We only want to process button presses
         // Skip the rest if the last event received was not a button event
         if (std::find(std::begin(Buttons), std::end(Buttons), last_event) == std::end(Buttons)) {
             continue;
         }
         
-        // Respond to buttons ~~~~~~~~~~~~~~~~~~~~~~~
+        // Respond to buttons and events ~~~~~~~~~~~~~~~~~~~~~~~
         // The button responses are WEIRD, maybe even BROKEN
         // I found no way to stop the grey button from opening
         // some sort of "debug" window, or the yellow button 
@@ -396,6 +424,13 @@ auto process_events() -> void {
         // and just opens up a blank window that I can't do anything
         // about.
         // aka this function: setCanDisplayReactToButtons
+
+        // When the Gray button is pressed, do not show the debug window!
+        if (last_event == FWGuiEventType::FWGUI_EVENT_GRAY_BUTTON) {
+            // Override the debug window that it usually pop ups with
+           showPanel(panelIndex);
+
+        }
 
         // "Toggle" the simulation of the quadrature encoder when pressed
         if (last_event == FWGuiEventType::FWGUI_EVENT_BLUE_BUTTON) {

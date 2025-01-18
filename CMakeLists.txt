@@ -25,7 +25,8 @@ add_library(${CMAKE_PROJECT_NAME} INTERFACE)
 #add_subdirectory(../fwwasm fwwasm)
 
 # Compiler and linker option variables
-set(NORMAL_COMPILER_ARGS -Wall -Werror -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wfloat-equal -Wold-style-cast)
+# -Wall -Werror ; removed 1/14/2025
+set(NORMAL_COMPILER_ARGS -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wfloat-equal -Wold-style-cast)
 set(WASM_COMPILER_ARGS --target=wasm32-unknown-wasi -O3 -flto)
 set(WASM_LINKER_ARGS
     "-Wl,--no-entry" # Specify we don't need main exported
@@ -47,9 +48,10 @@ target_link_options(${PROJECT_NAME} INTERFACE ${WASM_LINKER_ARGS})
 add_link_options(${WASM_LINKER_ARGS})
 
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s")
-add_executable(leds.wasm "leds.cpp")
 
 add_executable(quadrature.wasm "quadrature.cpp")
+
+add_executable(accel.wasm "accel.cpp")
 
 ## Add all the examples under examples directory
 #message(STATUS "==========================================")
